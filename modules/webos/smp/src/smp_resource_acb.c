@@ -119,6 +119,16 @@ bool StarfishResourcePostLoad(StarfishResource *resource, const SS4S_VideoInfo *
     return true;
 }
 
+bool StarfishResourceSetDisplayArea(StarfishResource *resource, const SS4S_VideoInfo *info, int viewportWidth,
+                                    int viewportHeight, const SS4S_VideoRect *dst) {
+    (void) resource;
+    (void) info;
+    (void) viewportWidth;
+    (void) viewportHeight;
+    (void) dst;
+    return false;
+}
+
 bool StarfishResourceStartPlaying(StarfishResource *resource) {
     if (resource->acbId == 0) {
         return false;

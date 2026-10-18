@@ -34,12 +34,13 @@ static bool GetVideoCapabilities(SS4S_VideoCapabilities *capabilities) {
 
 static SS4S_VideoOpenResult VideoOpen(const SS4S_VideoInfo *info, const SS4S_VideoExtraInfo *extraInfo,
                                       SS4S_VideoInstance **instance, SS4S_PlayerContext *context) {
-    (void) extraInfo;
     if (context == NULL) {
         return SS4S_VIDEO_OPEN_ERROR;
     }
     StarfishPlayerLock(context);
     context->videoInfo = *info;
+    context->viewportWidth = extraInfo->viewportWidth;
+    context->viewportHeight = extraInfo->viewportHeight;
     context->hasVideo = true;
     *instance = (void *) context;
     if (!context->hasAudio && context->waitAudioVideoReady) {
@@ -153,8 +154,14 @@ static bool SetHDRInfo(SS4S_VideoInstance *instance, const SS4S_VideoHDRInfo *in
     return result;
 }
 
-static bool SetDisplayArea(SS4S_VideoInstance *ctx, const SS4S_VideoRect *src, const SS4S_VideoRect *dst) {
-    return true;
+static bool SetDisplayArea(SS4S_VideoInstance *instance, const SS4S_VideoRect *src, const SS4S_VideoRect *dst) {
+    (void) src;
+    SS4S_PlayerContext *ctx = (SS4S_PlayerContext *) instance;
+    StarfishPlayerLock(ctx);
+    bool result = StarfishResourceSetDisplayArea(ctx->res, &ctx->videoInfo, ctx->viewportWidth, ctx->viewportHeight,
+                                                 dst);
+    StarfishPlayerUnlock(ctx);
+    return result;
 }
 
 const SS4S_VideoDriver StarfishVideoDriver = {

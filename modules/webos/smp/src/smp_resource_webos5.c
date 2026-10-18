@@ -6,7 +6,20 @@
 struct StarfishResource {
     char windowId[32];
     int maxRefreshRate;
+    /* Where the video goes, in display pixels; zero size means the whole display */
+    SDL_Rect dst;
 };
+
+static void ResourceApplyWindow(StarfishResource *resource, const SS4S_VideoInfo *info) {
+    SDL_Rect src = {0, 0, info->width, info->height};
+    SDL_Rect dst = resource->dst;
+    if (dst.w <= 0 || dst.h <= 0) {
+        SDL_DisplayMode dm;
+        SDL_GetCurrentDisplayMode(0, &dm);
+        dst = (SDL_Rect) {0, 0, dm.w, dm.h};
+    }
+    SDL_webOSSetExportedWindow(resource->windowId, &src, &dst);
+}
 
 StarfishResource *StarfishResourceCreate(const char *appId) {
     (void) appId;
@@ -73,11 +86,25 @@ bool StarfishResourcePostLoad(StarfishResource *resource, const SS4S_VideoInfo *
     if (resource->windowId[0] == '\0') {
         return false;
     }
-    SDL_DisplayMode dm;
-    SDL_GetCurrentDisplayMode(0, &dm);
-    SDL_Rect src = {0, 0, info->width, info->height};
-    SDL_Rect dst = {0, 0, dm.w, dm.h};
-    SDL_webOSSetExportedWindow(resource->windowId, &src, &dst);
+    ResourceApplyWindow(resource, info);
+    return true;
+}
+
+bool StarfishResourceSetDisplayArea(StarfishResource *resource, const SS4S_VideoInfo *info, int viewportWidth,
+                                    int viewportHeight, const SS4S_VideoRect *dst) {
+    if (dst == NULL || viewportWidth <= 0 || viewportHeight <= 0) {
+        resource->dst = (SDL_Rect) {0, 0, 0, 0};
+    } else {
+        SDL_DisplayMode dm;
+        SDL_GetCurrentDisplayMode(0, &dm);
+        resource->dst = (SDL_Rect) {
+                dst->x * dm.w / viewportWidth, dst->y * dm.h / viewportHeight,
+                dst->width * dm.w / viewportWidth, dst->height * dm.h / viewportHeight,
+        };
+    }
+    if (resource->windowId[0] != '\0') {
+        ResourceApplyWindow(resource, info);
+    }
     return true;
 }
 

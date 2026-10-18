@@ -24,6 +24,7 @@ struct SS4S_PlayerContext {
     SS4S_AudioInfo audioInfo;
     bool hasAudio;
     SS4S_VideoInfo videoInfo;
+    int viewportWidth, viewportHeight;
     bool hasVideo;
 
     PlayerState state;

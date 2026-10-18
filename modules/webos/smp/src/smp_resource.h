@@ -24,6 +24,10 @@ bool StarfishResourceLoadCompleted(StarfishResource *resource, const char *media
 
 bool StarfishResourcePostLoad(StarfishResource *resource, const SS4S_VideoInfo *info);
 
+/* dst is in viewport coordinates, NULL for the whole screen */
+bool StarfishResourceSetDisplayArea(StarfishResource *resource, const SS4S_VideoInfo *info, int viewportWidth,
+                                    int viewportHeight, const SS4S_VideoRect *dst);
+
 bool StarfishResourceStartPlaying(StarfishResource *resource);
 
 bool StarfishResourcePostUnload(StarfishResource *resource);
