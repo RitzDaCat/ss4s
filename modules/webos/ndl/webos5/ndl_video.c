@@ -1,11 +1,41 @@
 #include <string.h>
+#include <limits.h>
 #include "ndl_common.h"
 #include "highend_check.h"
 #include "max_res.h"
 
 static SS4S_VideoOpenResult ReloadWithSize(SS4S_PlayerContext *context, int width, int height);
 
-static uint64_t GetTimeUs();
+/* Optional on older firmware. A missing symbol must not prevent loading NDL. */
+extern int NDL_DirectVideoSetFrameDropThreshold(int threshold) __attribute__((weak));
+
+void SS4S_NDL_webOS5_ConfigureRenderDrop(SS4S_PlayerContext *context) {
+#if SS4S_NDL_DROP_STALE_FRAMES
+    if (!context->mediaLoaded || context->mediaInfo.video.type == 0 || context->renderDropConfigured ||
+        context->renderDropAttempts >= 8) {
+        return;
+    }
+    if (NDL_DirectVideoSetFrameDropThreshold == NULL) {
+        context->renderDropAttempts = 8;
+        SS4S_NDL_webOS5_Log(SS4S_LogLevelWarn, "NDL", "Native render drop threshold unavailable; keeping firmware policy");
+        return;
+    }
+    ++context->renderDropAttempts;
+    /* Drop at the native render stage, preserving compressed reference frames.
+     * Zero's firmware semantics are unknown, so request one queued frame. */
+    int result = NDL_DirectVideoSetFrameDropThreshold(1);
+    if (result == 0) {
+        context->renderDropConfigured = true;
+        SS4S_NDL_webOS5_Log(SS4S_LogLevelInfo, "NDL", "Native render drop threshold=1 accepted (attempt %u)",
+                           context->renderDropAttempts);
+    } else if (context->renderDropAttempts == 8) {
+        SS4S_NDL_webOS5_Log(SS4S_LogLevelWarn, "NDL", "Native render drop threshold rejected (%d); keeping firmware policy",
+                           result);
+    }
+#else
+    (void) context;
+#endif
+}
 
 static bool GetCapabilities(SS4S_VideoCapabilities *capabilities) {
     capabilities->codecs = SS4S_VIDEO_H264 | SS4S_VIDEO_H265 | SS4S_VIDEO_VP9 | SS4S_VIDEO_AV1;
@@ -31,8 +61,12 @@ static bool GetCapabilities(SS4S_VideoCapabilities *capabilities) {
 static SS4S_VideoOpenResult OpenVideo(const SS4S_VideoInfo *info, const SS4S_VideoExtraInfo *extraInfo,
                                       SS4S_VideoInstance **instance, SS4S_PlayerContext *context) {
     (void) extraInfo;
+    if (context == NULL) { return SS4S_VIDEO_OPEN_ERROR; }
     SS4S_NDL_webOS5_Log(SS4S_LogLevelInfo, "NDL", "OpenVideo called");
     pthread_mutex_lock(&SS4S_NDL_webOS5_Lock);
+    context->frameIntervalNumeratorUs = info->frameRateDenominator > 0 ?
+                                        (uint64_t) info->frameRateDenominator * 1000000 : 0;
+    context->frameIntervalDenominator = info->frameRateNumerator > 0 ? (unsigned int) info->frameRateNumerator : 0;
     memset(&context->mediaInfo.video, 0, sizeof(context->mediaInfo.video));
     SS4S_VideoOpenResult result;
     switch (info->codec) {
@@ -84,14 +118,9 @@ static SS4S_VideoFeedResult FeedVideo(SS4S_VideoInstance *instance, const unsign
                             NDL_DirectMediaGetError());
         return SS4S_VIDEO_FEED_ERROR;
     }
-    uint64_t now = GetTimeUs();
-    int renderBufferLength = 0;
-    if (context->lastFrameTime > 0 && NDL_DirectVideoGetRenderBufferLength(&renderBufferLength) == 0) {
-        float bufLen = renderBufferLength > 0 ? (float) renderBufferLength : 0.5f;
-        float latency = bufLen * (float) (now - context->lastFrameTime);
-        SS4S_NDL_webOS5_Lib->VideoStats.ReportFrame(context->player, (int) latency);
-    }
-    context->lastFrameTime = now;
+    /* Asynchronous loads may reject the initial configuration. Retry only after
+     * accepted video, at most eight times total per pipeline load. */
+    SS4S_NDL_webOS5_ConfigureRenderDrop(context);
     return SS4S_VIDEO_FEED_OK;
 }
 
@@ -177,10 +206,27 @@ static SS4S_VideoOpenResult ReloadWithSize(SS4S_PlayerContext *context, int widt
     return SS4S_VIDEO_OPEN_OK;
 }
 
-static uint64_t GetTimeUs() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t) ts.tv_sec * 1000000 + (uint64_t) ts.tv_nsec / 1000;
+SS4S_EXPORTED bool SS4S_ModuleVideoDiagnosticsV1_NDL_WEBOS5(SS4S_VideoInstance *instance,
+                                                          size_t diagnosticsSize,
+                                                          SS4S_VideoDiagnostics *diagnostics) {
+    if (diagnosticsSize != sizeof(*diagnostics) || diagnostics == NULL) { return false; }
+    SS4S_PlayerContext *context = (void *) instance;
+    int frames;
+    if (!context->mediaLoaded || NDL_DirectVideoGetRenderBufferLength(&frames) != 0 || frames < 0) { return false; }
+    diagnostics->kind = SS4S_VIDEO_DIAGNOSTICS_QUEUE_ESTIMATE;
+    diagnostics->completionLatencyUs = -1;
+    diagnostics->renderQueueFrames = frames;
+    diagnostics->estimatedQueueDelayUs = -1;
+    if (context->frameIntervalDenominator > 0 && context->frameIntervalNumeratorUs > 0) {
+        /* Saturate before multiplying: malformed rates/queue counts must not
+         * wrap into a plausible small delay. */
+        uint64_t limit = (uint64_t) INT_MAX * context->frameIntervalDenominator;
+        uint64_t delay = frames == 0 ? 0 :
+                         context->frameIntervalNumeratorUs > limit / (unsigned int) frames ? INT_MAX :
+                         (uint64_t) frames * context->frameIntervalNumeratorUs / context->frameIntervalDenominator;
+        diagnostics->estimatedQueueDelayUs = delay > INT_MAX ? INT_MAX : (int) delay;
+    }
+    return true;
 }
 
 const SS4S_VideoDriver SS4S_NDL_webOS5_VideoDriver = {

@@ -49,6 +49,8 @@ void *SS4S_PlayerGetUserdata(SS4S_Player *player);
 
 bool SS4S_PlayerGetVideoLatency(SS4S_Player *player, int avgIntervalUs, int *latencyUs);
 
+bool SS4S_PlayerGetVideoDiagnostics(SS4S_Player *player, int avgIntervalUs, SS4S_VideoDiagnostics *diagnostics);
+
 #ifdef __cplusplus
 }
 #endif

@@ -80,13 +80,14 @@ int32_t SS4S_StatsCounterGetAverageLatencyUs(const SS4S_StatsCounter *counter, u
     uint64_t now = GetTimeUs();
     size_t remSize = counter->size;
     size_t index = counter->index;
-    uint32_t count = 0, sum = 0;
+    uint32_t count = 0;
+    uint64_t sum = 0;
     while (remSize > 0) {
-        index = (index + counter->capacity - 1) % counter->capacity;
         if (now - counter->items[index].frameTimeUs > intervalUs) {
             break;
         }
         uint32_t latency = counter->items[index].latencyUs;
+        index = (index + counter->capacity - 1) % counter->capacity;
         remSize--;
         if (latency == (uint32_t) -1) {
             continue;
@@ -97,7 +98,8 @@ int32_t SS4S_StatsCounterGetAverageLatencyUs(const SS4S_StatsCounter *counter, u
     if (count == 0) {
         return -1;
     }
-    return (int32_t) (sum / count);
+    uint64_t average = sum / count;
+    return average > INT32_MAX ? INT32_MAX : (int32_t) average;
 }
 
 size_t NextIndex(const SS4S_StatsCounter *counter) {
@@ -108,5 +110,5 @@ size_t NextIndex(const SS4S_StatsCounter *counter) {
 static uint64_t GetTimeUs() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+    return (uint64_t) ts.tv_sec * 1000000 + (uint64_t) ts.tv_nsec / 1000;
 }

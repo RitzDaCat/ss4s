@@ -12,7 +12,8 @@ extern const SS4S_LibraryContext *SS4S_NDL_webOS5_Lib;
 
 struct SS4S_PlayerContext {
     SS4S_Player *player;
-    uint64_t lastFrameTime;
+    uint64_t frameIntervalNumeratorUs;
+    unsigned int frameIntervalDenominator;
     NDL_DIRECTMEDIA_DATA_INFO_T mediaInfo;
     struct SS4S_OpusEmpty *opusEmpty;
     struct SS4S_NDLOpusFix *opusFix;
@@ -21,6 +22,8 @@ struct SS4S_PlayerContext {
     bool waitAudioVideoReady;
     int aspectRatio;
     bool hasHdrInfo;
+    bool renderDropConfigured;
+    unsigned int renderDropAttempts;
 };
 
 extern const SS4S_PlayerDriver SS4S_NDL_webOS5_PlayerDriver;
@@ -30,6 +33,8 @@ extern const SS4S_VideoDriver SS4S_NDL_webOS5_VideoDriver;
 int SS4S_NDL_webOS5_ReloadMedia(SS4S_PlayerContext *context);
 
 int SS4S_NDL_webOS5_UnloadMedia(SS4S_PlayerContext *context);
+
+void SS4S_NDL_webOS5_ConfigureRenderDrop(SS4S_PlayerContext *context);
 
 uint64_t SS4S_NDL_webOS5_GetPts(const SS4S_PlayerContext *context);
 

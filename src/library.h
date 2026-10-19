@@ -24,6 +24,8 @@ const SS4S_AudioDriver *SS4S_GetAudioDriver();
 
 const SS4S_VideoDriver *SS4S_GetVideoDriver();
 
+SS4S_VideoDiagnosticsFunction *SS4S_GetVideoDiagnosticsFunction();
+
 const SS4S_PlayerDriver *SS4S_GetAudioPlayerDriver();
 
 const SS4S_PlayerDriver *SS4S_GetVideoPlayerDriver();

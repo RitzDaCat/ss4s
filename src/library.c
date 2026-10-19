@@ -20,6 +20,7 @@ static struct {
         const char *ModuleName;
         const SS4S_VideoDriver *Driver;
         const SS4S_PlayerDriver *PlayerDriver;
+        SS4S_VideoDiagnosticsFunction *Diagnostics;
     } Video;
 } States;
 
@@ -64,6 +65,7 @@ int SS4S_Init(int argc, char *argv[], const SS4S_Config *config) {
                 States.Video.Driver = module.VideoDriver;
                 States.Video.PlayerDriver = module.PlayerDriver;
                 States.Video.ModuleName = module.Name;
+                States.Video.Diagnostics = SS4S_ModuleGetVideoDiagnostics(config->videoDriver);
                 SS4S_Log(SS4S_LogLevelInfo, "Video", "Opened driver: %s", module.Name);
             }
         }
@@ -90,6 +92,7 @@ void SS4S_Quit() {
     if (States.Video.Driver != NULL) {
         SS4S_DriverQuit(&States.Video.Driver->Base);
         States.Video.Driver = NULL;
+        States.Video.Diagnostics = NULL;
     }
 }
 
@@ -99,6 +102,10 @@ const SS4S_AudioDriver *SS4S_GetAudioDriver() {
 
 const SS4S_VideoDriver *SS4S_GetVideoDriver() {
     return States.Video.Driver;
+}
+
+SS4S_VideoDiagnosticsFunction *SS4S_GetVideoDiagnosticsFunction() {
+    return States.Video.Diagnostics;
 }
 
 const SS4S_PlayerDriver *SS4S_GetAudioPlayerDriver() {

@@ -70,6 +70,12 @@ typedef struct SS4S_AudioDriver {
 
 typedef struct SS4S_VideoInstance SS4S_VideoInstance;
 
+/* Optional module symbol SS4S_ModuleVideoDiagnosticsV1_<MODULE>, resolved
+ * separately to preserve the existing module/driver structure ABI in both
+ * directions. Implementations must reject unknown diagnosticsSize values. */
+typedef bool (SS4S_VideoDiagnosticsFunction)(SS4S_VideoInstance *instance, size_t diagnosticsSize,
+                                            SS4S_VideoDiagnostics *diagnostics);
+
 typedef struct SS4S_VideoDriver {
     SS4S_DriverBase Base;
 

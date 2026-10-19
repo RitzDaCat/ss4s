@@ -1,6 +1,8 @@
 #define NDL_DIRECTMEDIA_API_VERSION 2
 
 #include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "NDL_directmedia.h"
 
 #include "ndl_directmedia_mock.h"
@@ -75,7 +77,32 @@ int NDL_DirectVideoGetRenderBufferLength(int *length) {
         mock_ndl_unlock(__func__);
         return -1;
     }
-    *length = 0;
+    /* Test-only control; the production driver never reads this variable. */
+    const char *configured = getenv("SS4S_MOCK_NDL_QUEUE_FRAMES");
+    *length = configured != NULL ? atoi(configured) : 0;
+    mock_ndl_unlock(__func__);
+    return 0;
+}
+
+int NDL_DirectVideoSetFrameDropThreshold(int threshold) {
+    mock_ndl_lock(__func__);
+    if (!video_opened) {
+        mock_ndl_unlock(__func__);
+        return -1;
+    }
+    const char *value = getenv("SS4S_MOCK_NDL_DROP_CALLS");
+    unsigned int calls = value != NULL ? (unsigned int) atoi(value) + 1 : 1;
+    char text[32];
+    snprintf(text, sizeof(text), "%u", calls);
+    setenv("SS4S_MOCK_NDL_DROP_CALLS", text, 1);
+    value = getenv("SS4S_MOCK_NDL_DROP_FAIL_CALLS");
+    unsigned int failures = value != NULL ? (unsigned int) atoi(value) : 0;
+    if (threshold != 1 || calls <= failures) {
+        mock_ndl_unlock(__func__);
+        return -1;
+    }
+    snprintf(text, sizeof(text), "%d", threshold);
+    setenv("SS4S_MOCK_NDL_APPLIED_DROP_THRESHOLD", text, 1);
     mock_ndl_unlock(__func__);
     return 0;
 }

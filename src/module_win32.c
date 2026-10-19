@@ -4,6 +4,18 @@
 #include <windows.h>
 #include <string.h>
 
+SS4S_VideoDiagnosticsFunction *SS4S_ModuleGetVideoDiagnostics(const char *name) {
+    if (name == NULL || name[0] == '\0') { return NULL; }
+    char tmp[128];
+    ModuleFileName(tmp, sizeof(tmp), name);
+    HMODULE lib = LoadLibraryA(tmp);
+    if (lib == NULL) { return NULL; }
+    ModuleFunctionName(tmp, sizeof(tmp), "VideoDiagnosticsV1", name);
+    SS4S_VideoDiagnosticsFunction *fn = (SS4S_VideoDiagnosticsFunction *) (void *) GetProcAddress(lib, tmp);
+    FreeLibrary(lib);
+    return fn;
+}
+
 bool SS4S_ModuleOpen(const char *name, SS4S_Module *module, const SS4S_LibraryContext *context) {
     if (name == NULL || name[0] == '\0') {
         return false;

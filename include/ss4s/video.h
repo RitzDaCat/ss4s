@@ -89,6 +89,8 @@ typedef struct SS4S_VideoCapabilities {
          * Video can't be rendered if UI is present
          */
         SS4S_VIDEO_CAP_TRANSFORM_UI_EXCLUSIVE = 0x10,
+        /* Independent simultaneous players with working destination placement. */
+        SS4S_VIDEO_CAP_TRANSFORM_MULTI_INSTANCE = 0x20,
     } transform;
     unsigned int maxBitrate;
     unsigned int suggestedBitrate;
@@ -105,6 +107,22 @@ typedef struct SS4S_VideoCapabilities {
 typedef struct SS4S_VideoExtraInfo {
     int viewportWidth, viewportHeight;
 } SS4S_VideoExtraInfo;
+
+typedef enum SS4S_VideoDiagnosticsKind {
+    SS4S_VIDEO_DIAGNOSTICS_NONE = 0,
+    SS4S_VIDEO_DIAGNOSTICS_COMPLETION = 1,
+    SS4S_VIDEO_DIAGNOSTICS_QUEUE_ESTIMATE = 2,
+} SS4S_VideoDiagnosticsKind;
+
+/* Completion is the backend's feed-start to completion interval, not hardware
+ * decode time alone. Queue delay is a nominal-frame-rate estimate, not a
+ * measured completion interval. Unavailable integer fields are -1. */
+typedef struct SS4S_VideoDiagnostics {
+    SS4S_VideoDiagnosticsKind kind;
+    int completionLatencyUs;
+    int renderQueueFrames;
+    int estimatedQueueDelayUs;
+} SS4S_VideoDiagnostics;
 
 #ifndef SS4S_MODAPI_H
 

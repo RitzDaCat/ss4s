@@ -49,18 +49,30 @@ uint64_t SS4S_NDL_webOS5_GetPts(const SS4S_PlayerContext *context) {
 }
 
 static SS4S_PlayerContext *CreatePlayerContext(SS4S_Player *player) {
-    assert(ActivatePlayerContext == NULL);
+    pthread_mutex_lock(&SS4S_NDL_webOS5_Lock);
+    if (ActivatePlayerContext != NULL) {
+        SS4S_NDL_webOS5_Log(SS4S_LogLevelError, "NDL", "Only one player can own the NDL media pipeline");
+        pthread_mutex_unlock(&SS4S_NDL_webOS5_Lock);
+        return NULL;
+    }
     SS4S_PlayerContext *created = calloc(1, sizeof(SS4S_PlayerContext));
+    if (created == NULL) {
+        pthread_mutex_unlock(&SS4S_NDL_webOS5_Lock);
+        return NULL;
+    }
     created->player = player;
     ActivatePlayerContext = created;
+    pthread_mutex_unlock(&SS4S_NDL_webOS5_Lock);
     return created;
 }
 
 static void DestroyPlayerContext(SS4S_PlayerContext *context) {
+    pthread_mutex_lock(&SS4S_NDL_webOS5_Lock);
     UnloadMedia(context);
-    free(context);
     assert(context == ActivatePlayerContext);
     ActivatePlayerContext = NULL;
+    free(context);
+    pthread_mutex_unlock(&SS4S_NDL_webOS5_Lock);
 }
 
 static void PlayerSetWaitAudioVideoReady(SS4S_PlayerContext *context, bool option) {
@@ -106,6 +118,8 @@ static int LoadMedia(SS4S_PlayerContext *context) {
                             NDL_DirectMediaGetError());
         return ret;
     }
+    context->renderDropConfigured = false;
+    context->renderDropAttempts = 0;
     if (context->mediaInfo.audio.type == NDL_AUDIO_TYPE_PCM) {
         unsigned short empty_buf[8] = {0};
         int numChannels = 2;
@@ -122,6 +136,7 @@ static int LoadMedia(SS4S_PlayerContext *context) {
 
     context->mediaLoaded = true;
     clock_gettime(CLOCK_MONOTONIC, &context->mediaLoadedTime);
+    SS4S_NDL_webOS5_ConfigureRenderDrop(context);
     return ret;
 }
 

@@ -5,6 +5,19 @@
 #include <dlfcn.h>
 #include <string.h>
 
+SS4S_VideoDiagnosticsFunction *SS4S_ModuleGetVideoDiagnostics(const char *name) {
+    if (name == NULL || name[0] == '\0') { return NULL; }
+    char tmp[128];
+    ModuleFileName(tmp, sizeof(tmp), name);
+    void *lib = dlopen(tmp, RTLD_NOW);
+    if (lib == NULL) { return NULL; }
+    ModuleFunctionName(tmp, sizeof(tmp), "VideoDiagnosticsV1", name);
+    SS4S_VideoDiagnosticsFunction *fn = (SS4S_VideoDiagnosticsFunction *) dlsym(lib, tmp);
+    /* ModuleOpen retains its own reference for the driver's lifetime. */
+    dlclose(lib);
+    return fn;
+}
+
 bool SS4S_ModuleOpen(const char *name, SS4S_Module *module, const SS4S_LibraryContext *context) {
     if (name == NULL || name[0] == '\0') {
         return false;

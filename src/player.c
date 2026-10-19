@@ -8,7 +8,7 @@
 
 SS4S_Player *SS4S_PlayerOpen() {
     SS4S_Player *player = calloc(1, sizeof(SS4S_Player));
-    assert(player != NULL);
+    if (player == NULL) { return NULL; }
     player->mutex = SS4S_MutexCreate();
     SS4S_FeedGuardInit(&player->audio_guard);
     SS4S_FeedGuardInit(&player->video_guard);
@@ -23,6 +23,11 @@ SS4S_Player *SS4S_PlayerOpen() {
         }
     } else if (videoPlayerDriver != NULL) {
         player->context.video = player->context.audio = videoPlayerDriver->Create(player);
+    }
+    if ((audioPlayerDriver != NULL && player->context.audio == NULL) ||
+        (videoPlayerDriver != NULL && player->context.video == NULL)) {
+        SS4S_PlayerClose(player);
+        return NULL;
     }
     return player;
 }
@@ -122,4 +127,33 @@ bool SS4S_PlayerGetVideoLatency(SS4S_Player *player, int avgIntervalUs, int *lat
     }
     *latencyUs = result;
     return true;
+}
+
+bool SS4S_PlayerGetVideoDiagnostics(SS4S_Player *player, int avgIntervalUs, SS4S_VideoDiagnostics *diagnostics) {
+    if (player == NULL || diagnostics == NULL) { return false; }
+    *diagnostics = (SS4S_VideoDiagnostics) {
+        .kind = SS4S_VIDEO_DIAGNOSTICS_NONE,
+        .completionLatencyUs = -1,
+        .renderQueueFrames = -1,
+        .estimatedQueueDelayUs = -1,
+    };
+    SS4S_VideoInstance *video = SS4S_FeedGuardAcquire(&player->video_guard);
+    if (video == NULL) { return false; }
+    SS4S_VideoDiagnosticsFunction *fn = SS4S_GetVideoDiagnosticsFunction();
+    const char *module = SS4S_GetVideoModuleName();
+    bool result;
+    if (fn != NULL) {
+        result = fn(video, sizeof(*diagnostics), diagnostics);
+    } else if (module != NULL &&
+               (strcmp(module, "smp-webos") == 0 || strcmp(module, "smp-webos4") == 0 ||
+                strcmp(module, "smp-webos3") == 0)) {
+        /* Only SMP's legacy counter is known to measure completion. Old NDL
+         * modules report a queue proxy through the same counter API. */
+        result = SS4S_PlayerGetVideoLatency(player, avgIntervalUs, &diagnostics->completionLatencyUs);
+        if (result) { diagnostics->kind = SS4S_VIDEO_DIAGNOSTICS_COMPLETION; }
+    } else {
+        result = false;
+    }
+    SS4S_FeedGuardRelease(&player->video_guard);
+    return result;
 }
